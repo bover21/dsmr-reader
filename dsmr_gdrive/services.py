@@ -14,7 +14,7 @@ from django.utils.translation import ugettext_lazy as gettext
 import dsmr_backup.services.backup
 from dsmr_backup.models.settings import GoogleDriveSettings
 from dsmr_frontend.models.message import Notification
-from dsmr_gdrive.gdrive.Credentials import Credentials, CredentialsError, execute_file_search, FileError
+from dsmr_gdrive.gdrive.drive_api import *
 from dsmrreader import settings
 
 logger = logging.getLogger('commands')
@@ -34,6 +34,8 @@ def sync():
     if gdrive_settings.next_sync and gdrive_settings.next_sync > timezone.now():
         return
 
+    creds = create_credentials(gdrive_settings)
+
     if gdrive_settings.state == 0:
         make_request(gdrive_settings)
 
@@ -44,10 +46,7 @@ def sync():
         setup_directory(gdrive_settings)
 
     elif gdrive_settings.state == 3:
-        gdrive_sync()
-        print(calculate_content_hash("tests/small_file.txt"))
-        creds = create_credentials(gdrive_settings)
-        print(get_file_meta_data(creds, "small_file.txt", gdrive_settings.folder_id))
+        gdrive_sync(gdrive_settings)
 
 
 def should_sync_file(abs_file_path):
@@ -73,7 +72,7 @@ def should_sync_file(abs_file_path):
     return True
 
 
-def gdrive_sync():
+def gdrive_sync(gdrive_settings):
     backup_directory = dsmr_backup.services.backup.get_backup_directory()
 
     # Sync each file, recursively.
@@ -84,21 +83,37 @@ def gdrive_sync():
             if not should_sync_file(abs_file_path):
                 continue
 
-            # sync file
+            sync_file(gdrive_settings, backup_directory, abs_file_path)
 
-    # Try again in a while.
-    GoogleDriveSettings.objects.update(
-        latest_sync=timezone.now(),
-        next_sync=timezone.now() + timezone.timedelta(
-            hours=settings.DSMRREADER_GDRIVE_SYNC_INTERVAL
-        )
-    )
+    # # Try again in a while.
+    # GoogleDriveSettings.objects.update(
+    #     latest_sync=timezone.now(),
+    #     next_sync=timezone.now() + timezone.timedelta(
+    #         hours=settings.DSMRREADER_GDRIVE_SYNC_INTERVAL
+    #     )
+    # )
     pass
 
 
-def sync_file(ab_file_path):
+def sync_file(gdrive_settings, local_root_dir, abs_file_path):
+    credentials = create_credentials(gdrive_settings)
 
-    pass
+    relative_file_path = abs_file_path.replace(local_root_dir, '')
+    drive_root_id = gdrive_settings.folder_id
+
+    gdrive_file_meta = get_file_meta(credentials, relative_file_path, drive_root_id)
+
+    if gdrive_file_meta and calculate_content_hash(abs_file_path) == gdrive_file_meta['md5Checksum']:
+        return logger.debug(' - Dropbox content hash is the same, skipping: %s', relative_file_path)
+
+    # Upload
+    if gdrive_file_meta is not None:
+        location = init_resumable_upload_session_existing_file(credentials, abs_file_path, gdrive_file_meta['id'])
+    else:
+        location = init_resumable_upload_session(credentials, abs_file_path, relative_file_path, drive_root_id)
+
+    if location is not None:
+        upload_file(abs_file_path, location)
 
 
 def calculate_content_hash(file_path):
@@ -110,6 +125,12 @@ def calculate_content_hash(file_path):
                 break
             hasher.update(chunk)
     return hasher.hexdigest()
+
+
+def create_credentials(gdrive_settings):
+    credentials = Credentials(gdrive_settings.client_id, gdrive_settings.client_secret, gdrive_settings.refresh_token,
+                              gdrive_settings.access_token, gdrive_settings.token_expiry)
+    return credentials
 
 
 # region Drive Access
@@ -193,78 +214,11 @@ def poll_server(gdrive_settings):
 # endregion
 
 
-# region Drive File functions
-def check_if_folder_exists(credentials, name):
-    name = name.replace('_', '-')
-
-    # Name Checking is oke for a first release, but ideally users would be able to change the name.
-    # Not completely sure how to fix this at the moment, without also introducing several other issues
-    # The google drive API isn't that clear on how to find files by ID, and it isn't a super important issue ATM
-    query = f'name = \'{name}\' and trashed = false and mimeType = \'application/vnd.google-apps.folder\''
-    order_by = "modifiedTime desc"
-    files = execute_file_search(credentials, query, order_by)
-
-    if len(files) > 0:
-        return files[0]['id']
-    return None
-
-
-# def get_file_id(credentials, file_name, parent_id):
-#     query = f'name = \'{file_name}\' and trashed = false and \'{parent_id}\' in parents'
-#     order_by = 'modifiedTime desc'
-#     files = execute_file_search(credentials, query, order_by)
-#     if len(files) > 0:
-#         return files[0]['id']
-#     return None
-
-
-def get_file_meta_data(credentials, file_name, parent_id):
-    query = f'name = \'{file_name}\' and trashed = false and \'{parent_id}\' in parents'
-    order_by = 'modifiedTime desc'
-    fields = 'files(md5Checksum,originalFilename,id)'
-    files = execute_file_search(credentials, query, order_by, fields)
-    if len(files) > 0:
-        return files[0]
-    return None
-
-
-def create_remote_dsmr_dir(credentials, directory_name):
-    directory_name = directory_name.replace('_', '-')
-    dir_id = check_if_folder_exists(credentials, directory_name)
-    if dir_id is not None:
-        logger.debug(f'Dir already exists ({dir_id})')
-        return dir_id
-
-    if not credentials.valid:
-        credentials.refresh()
-
-    # Thanks to https://stackoverflow.com/questions/40999982/create-folders-in-google-drive-with-rest-api-interface-and-
-    # python-requests
-    headers = {'Authorization': f'Bearer {credentials.access_token}',
-               'Content-Type': 'application/json'}
-    metadata = {'name': directory_name,
-                'mimeType': 'application/vnd.google-apps.folder'}
-
-    r = requests.post('https://www.googleapis.com/drive/v3/files', headers=headers, data=json.dumps(metadata))
-    data = r.json()
-
-    if 'error' in data:
-        return None
-    return data['id']
-# endregion
-
-
-def create_credentials(gdrive_settings):
-    credentials = Credentials(gdrive_settings.client_id, gdrive_settings.client_secret, gdrive_settings.refresh_token,
-                              gdrive_settings.access_token, gdrive_settings.token_expiry)
-    return credentials
-
-
 # region Drive Setup
 def setup_directory(gdrive_settings):
     credentials = create_credentials(gdrive_settings)
     try:
-        dir_id = create_remote_dsmr_dir(credentials, gdrive_settings.folder_name)
+        dir_id = create_remote_folder(credentials, gdrive_settings.folder_name)
 
         GoogleDriveSettings.objects.update(
             folder_id=dir_id,
@@ -286,4 +240,3 @@ def setup_directory(gdrive_settings):
 
     pass
 # endregion
-
