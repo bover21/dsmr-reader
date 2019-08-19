@@ -6,7 +6,7 @@ from django.conf import settings
 from django.db import models
 from solo.admin import SingletonModelAdmin
 
-from .models.settings import BackupSettings, DropboxSettings, EmailBackupSettings
+from .models.settings import BackupSettings, DropboxSettings, EmailBackupSettings, GoogleDriveSettings
 from dsmr_backend.models.settings import EmailSettings
 from dsmr_backend.models.schedule import ScheduledProcess
 
@@ -74,6 +74,45 @@ class DropboxSettingsAdmin(SingletonModelAdmin):
     def response_change(self, request, obj):
         DropboxSettings.objects.all().update(next_sync=timezone.now())
         return super(DropboxSettingsAdmin, self).response_change(request, obj)
+
+
+@admin.register(GoogleDriveSettings)
+class GoogleDriveSettingsAdmin(SingletonModelAdmin):
+    change_form_template = 'dsmr_backup/gdrive_settings/change_form.html'
+    readonly_fields = ('latest_sync', 'next_sync', 'authorization_url_view', 'user_code')
+    formfield_overrides = {
+        models.CharField: {'widget': TextInput(attrs={'size': '64'})},
+    }
+    fieldsets = (
+        (
+            None, {
+                'fields': ['client_id', 'client_secret'],
+                'description': _(
+                    'This will synchronize backups to your Google Drive. Detailed instructions for configuring '
+                    'Google Drive can be found here: <a href="https://dsmr-reader.readthedocs.io/nl/latest/admin/'
+                    'backup_googledrive.html">Documentation</a>'
+                )
+            }
+        ),
+        (
+            _('authorization fields'), {
+                'fields': ['authorization_url_view', 'user_code'],
+                'description': _(
+                    'When setting up google drive a Authorization URL and User Code will appear here '
+                    'these are only required to setup google drive backup'
+                )
+            }
+        ),
+        (
+            _('Automatic fields'), {
+                'fields': ['latest_sync', 'next_sync']
+            }
+        ),
+    )
+
+    def response_change(self, request, obj):
+        GoogleDriveSettings.objects.all().update(next_sync=timezone.now())
+        return super(GoogleDriveSettingsAdmin, self).response_change(request, obj)
 
 
 @admin.register(EmailBackupSettings)
