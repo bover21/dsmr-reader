@@ -160,7 +160,10 @@ class GoogleDriveSettings(SingletonModel):
         null=True,
         blank=True,
     )
-    token_expiry = models.DateTimeField()
+    token_expiry = models.DateTimeField(
+        default=None,
+        null=True,
+        blank=True)
     state = models.IntegerField(default=0)
 
     def authorization_url_view(self):

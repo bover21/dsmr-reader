@@ -1,21 +1,20 @@
-import json
+import hashlib
 import logging
 import os
 import time
 from datetime import timedelta
-import hashlib
 
 import requests
 from django.utils import timezone
-
-
 from django.utils.translation import ugettext_lazy as gettext
 
 import dsmr_backup.services.backup
 from dsmr_backup.models.settings import GoogleDriveSettings
 from dsmr_frontend.models.message import Notification
-from dsmr_gdrive.gdrive.drive_api import *
+from dsmr_gdrive.gdrive.drive_api import Credentials, DriveService, CredentialsError, UploadError, FileError
+
 from dsmrreader import settings
+from django.conf import settings
 
 logger = logging.getLogger('commands')
 
@@ -34,7 +33,10 @@ def sync():
     if gdrive_settings.next_sync and gdrive_settings.next_sync > timezone.now():
         return
 
-    creds = create_credentials(gdrive_settings)
+    credentials = Credentials(gdrive_settings.client_id, gdrive_settings.client_secret, gdrive_settings.refresh_token,
+                              gdrive_settings.access_token, gdrive_settings.token_expiry)
+
+    service = DriveService(credentials)
 
     if gdrive_settings.state == 0:
         make_request(gdrive_settings)
@@ -43,10 +45,24 @@ def sync():
         poll_server(gdrive_settings)
 
     elif gdrive_settings.state == 2:
-        setup_directory(gdrive_settings)
+        setup_directory(service, gdrive_settings)
 
     elif gdrive_settings.state == 3:
-        gdrive_sync(gdrive_settings)
+        gdrive_sync(service, gdrive_settings)
+
+    if credentials.access_token is not None and credentials.token_expiry is not None:
+        GoogleDriveSettings.objects.update(
+            access_token=credentials.access_token,
+            token_expiry=credentials.token_expiry
+        )
+
+    # Try again in a while.
+    GoogleDriveSettings.objects.update(
+        latest_sync=timezone.now(),
+        next_sync=timezone.now() + timezone.timedelta(
+            hours=settings.DSMRREADER_GDRIVE_SYNC_INTERVAL
+        )
+    )
 
 
 def should_sync_file(abs_file_path):
@@ -60,7 +76,6 @@ def should_sync_file(abs_file_path):
 
     # Ignore file that haven't been updated in a while.
     seconds_since_last_modification = int(time.time() - file_stat.st_mtime)
-
     if seconds_since_last_modification > settings.DSMRREADER_GDRIVE_MAX_FILE_MODIFICATION_TIME:
         logger.debug(
             'Ignoring file: Time since last modification too high (%s secs): %s',
@@ -72,7 +87,7 @@ def should_sync_file(abs_file_path):
     return True
 
 
-def gdrive_sync(gdrive_settings):
+def gdrive_sync(service, gdrive_settings):
     backup_directory = dsmr_backup.services.backup.get_backup_directory()
 
     # Sync each file, recursively.
@@ -82,38 +97,58 @@ def gdrive_sync(gdrive_settings):
 
             if not should_sync_file(abs_file_path):
                 continue
+            try:
+                sync_file(gdrive_settings, service, backup_directory, abs_file_path)
+            except CredentialsError:
+                Notification.objects.create(message=gettext(
+                    "[{}] Invalid Credentials for Google Drive. Removing credentials...".format(
+                        timezone.now(),
+                    )
+                ))
+                GoogleDriveSettings.objects.update(
+                    latest_sync=timezone.now(),
+                    next_sync=None,
+                    client_id=None,
+                    state=0
+                )
 
-            sync_file(gdrive_settings, backup_directory, abs_file_path)
 
-    # # Try again in a while.
-    # GoogleDriveSettings.objects.update(
-    #     latest_sync=timezone.now(),
-    #     next_sync=timezone.now() + timezone.timedelta(
-    #         hours=settings.DSMRREADER_GDRIVE_SYNC_INTERVAL
-    #     )
-    # )
-    pass
-
-
-def sync_file(gdrive_settings, local_root_dir, abs_file_path):
-    credentials = create_credentials(gdrive_settings)
-
+def sync_file(gdrive_settings, service, local_root_dir, abs_file_path):
     relative_file_path = abs_file_path.replace(local_root_dir, '')
     drive_root_id = gdrive_settings.folder_id
 
-    gdrive_file_meta = get_file_meta(credentials, relative_file_path, drive_root_id)
+    gdrive_file_meta = service.get_file_meta(relative_file_path, drive_root_id)
 
     if gdrive_file_meta and calculate_content_hash(abs_file_path) == gdrive_file_meta['md5Checksum']:
-        return logger.debug(' - Dropbox content hash is the same, skipping: %s', relative_file_path)
+        return logger.debug(' - Google Drive content hash is the same, skipping: %s', relative_file_path)
 
     # Upload
     if gdrive_file_meta is not None:
-        location = init_resumable_upload_session_existing_file(credentials, abs_file_path, gdrive_file_meta['id'])
+        location = service.init_resumable_upload_session_existing_file(abs_file_path, gdrive_file_meta['id'])
     else:
-        location = init_resumable_upload_session(credentials, abs_file_path, relative_file_path, drive_root_id)
+        location = service.init_resumable_upload_session(abs_file_path, relative_file_path, drive_root_id)
 
-    if location is not None:
-        upload_file(abs_file_path, location)
+    error = False
+    try:
+        if location is not None:
+            service.upload_file(abs_file_path, location)
+        else:
+            error = True
+    except UploadError:
+        error = True
+
+    if error:
+        Notification.objects.create(message=gettext(
+            "[{}] Unable to upload files to Google Drive. "
+            "Ignoring new files for the next {} hours...".format(
+                timezone.now(),
+                settings.DSMRREADER_GDRIVE_ERROR_INTERVAL
+            )
+        ))
+        GoogleDriveSettings.objects.update(
+            latest_sync=timezone.now(),
+            next_sync=timezone.now() + timezone.timedelta(hours=settings.DSMRREADER_GDRIVE_ERROR_INTERVAL)
+        )
 
 
 def calculate_content_hash(file_path):
@@ -125,12 +160,6 @@ def calculate_content_hash(file_path):
                 break
             hasher.update(chunk)
     return hasher.hexdigest()
-
-
-def create_credentials(gdrive_settings):
-    credentials = Credentials(gdrive_settings.client_id, gdrive_settings.client_secret, gdrive_settings.refresh_token,
-                              gdrive_settings.access_token, gdrive_settings.token_expiry)
-    return credentials
 
 
 # region Drive Access
@@ -155,7 +184,7 @@ def make_request(gdrive_settings):
             state=1
         )
     else:
-        logger.error("Error when making request: " + data)
+        logger.error("Error when making request")
         Notification.objects.create(message=gettext(
             "[{}] Invalid credentials for google drive service. Credentials have been reset".format(
                 timezone.now()
@@ -163,7 +192,6 @@ def make_request(gdrive_settings):
         ))
         GoogleDriveSettings.objects.update(
             client_id=None,
-            client_secret=None,
             state=0
         )
     return
@@ -211,14 +239,15 @@ def poll_server(gdrive_settings):
             state=0
         )
         return
+
+
 # endregion
 
 
 # region Drive Setup
-def setup_directory(gdrive_settings):
-    credentials = create_credentials(gdrive_settings)
+def setup_directory(service, gdrive_settings):
     try:
-        dir_id = create_remote_folder(credentials, gdrive_settings.folder_name)
+        dir_id = service.create_remote_folder(gdrive_settings.folder_name)
 
         GoogleDriveSettings.objects.update(
             folder_id=dir_id,
@@ -227,12 +256,14 @@ def setup_directory(gdrive_settings):
 
     except (CredentialsError, FileError) as err:
         Notification.objects.create(message=gettext(
-            "[{}] Unable to create remote folder due to {}".format(
+            "[{}] Unable to create remote folder due to {}. Removing Credentials".format(
                 timezone.now(),
                 str(err)
             )
         ))
         GoogleDriveSettings.objects.update(
+            latest_sync=timezone.now(),
+            next_sync=None,
             client_id=None,
             state=0
         )

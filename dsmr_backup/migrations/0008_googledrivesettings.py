@@ -26,7 +26,7 @@ class Migration(migrations.Migration):
                 ('access_token', models.CharField(blank=True, default=None, max_length=256, null=True)),
                 ('refresh_token', models.CharField(blank=True, default=None, max_length=128, null=True)),
                 ('device_code', models.CharField(blank=True, default=None, max_length=128, null=True)),
-                ('token_expiry', models.DateTimeField()),
+                ('token_expiry', models.DateTimeField(default=None, null=True, blank=True)),
                 ('state', models.IntegerField(default=0)),
             ],
             options={

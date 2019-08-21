@@ -7,6 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DSMR Reader v1.x\n"
 "Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-08-21 02:21+0200\n"
 "Last-Translator: Dennis Siemensma <github@dennissiemensma.nl>\n"
 "Language-Team: Dennis Siemensma <github@dennissiemensma.nl>\n"
 "Language: nl\n"
@@ -148,6 +149,19 @@ msgstr "Automatische velden"
 msgid "This will synchronize backups to your Dropbox account. Detailed instructions for configuring Dropbox can be found here: <a href=\"https://dsmr-reader.readthedocs.io/nl/latest/admin/backup_dropbox.html\">Documentation</a>"
 msgstr "Dit synchroniseert back-up's naar je Dropbox-account. Gedetailleerde instructies voor het koppelen met Dropbox kun je hier terugvinden: <a href=\"https://dsmr-reader.readthedocs.io/nl/latest/admin/backup_dropbox.html\">Documentatie</a>"
 
+#, fuzzy
+#| msgid "This will synchronize backups to your Dropbox account. Detailed instructions for configuring Dropbox can be found here: <a href=\"https://dsmr-reader.readthedocs.io/nl/latest/admin/backup_dropbox.html\">Documentation</a>"
+msgid "This will synchronize backups to your Google Drive. Detailed instructions for configuring Google Drive can be found here: <a href=\"https://dsmr-reader.readthedocs.io/nl/latest/admin/backup_googledrive.html\">Documentation</a>"
+msgstr "Dit synchroniseert back-up's naar je Dropbox-account. Gedetailleerde instructies voor het koppelen met Dropbox kun je hier terugvinden: <a href=\"https://dsmr-reader.readthedocs.io/nl/latest/admin/backup_dropbox.html\">Documentatie</a>"
+
+#, fuzzy
+#| msgid "Automatic fields"
+msgid "authorization fields"
+msgstr "Automatische velden"
+
+msgid "When setting up google drive a Authorization URL and User Code will appear here these are only required to setup google drive backup"
+msgstr ""
+
 msgid "You can have DSMR-reader email you a backup every once in a while.<br><br>Please note that the backup will <strong>ONLY contain day and hour statistics</strong>, which are the most important data to preserve historically."
 msgstr "Je kunt DSMR-reader jezelf regelmatig een uitgeklede back-up laten sturen per e-mail.<br><br>N.B.: Deze back-up <strong>bevat alleen dag- en uurstatistics</strong>, de belangrijkste historische gegevens."
 
@@ -198,6 +212,38 @@ msgstr "Tijdstip van de volgende synchronisatie met Dropbox. Applicatie werkt di
 
 msgid "Dropbox configuration"
 msgstr "Dropbox-configuratie"
+
+msgid "Client ID"
+msgstr "Client ID"
+
+#, fuzzy
+#| msgid "Client ID"
+msgid "Client Secret"
+msgstr "Client ID"
+
+msgid "Authorization URL"
+msgstr ""
+
+msgid "User Code"
+msgstr ""
+
+#, fuzzy
+#| msgid "Timestamp of latest sync with Dropbox. Automatically updated by application."
+msgid "Timestamp of latest sync with Google Drive. Automatically updated by application."
+msgstr "Tijdstip van de laatste synchronisatie met Dropbox. Applicatie werkt dit automatisch bij."
+
+#, fuzzy
+#| msgid "Timestamp of next sync with Dropbox. Automatically updated by application."
+msgid "Timestamp of next sync with Google Drive. Automatically updated by application."
+msgstr "Tijdstip van de volgende synchronisatie met Dropbox. Applicatie werkt dit automatisch bij."
+
+msgid "Google Drive Folder Name"
+msgstr ""
+
+#, fuzzy
+#| msgid "Datalogger configuration"
+msgid "Google Drive configuration"
+msgstr "Dataloggerconfiguratie"
 
 msgid "--- Disabled ---"
 msgstr "--- Uitgeschakeld ---"
@@ -1207,6 +1253,35 @@ msgstr "Elektriciteitsverbruik piek- en daltarief (afgelopen week)"
 msgid "Electricity tariff ratio (past month)"
 msgstr "Elektriciteitsverbruik piek- en daltarief (afgelopen maand)"
 
+msgid "Google Drive"
+msgstr ""
+
+#, fuzzy
+#| msgid "Forces Dropbox sync."
+msgid "Forces Google Drive sync."
+msgstr "Forceert Dropbox synchronisatie."
+
+#, fuzzy
+#| msgid "[{}] Unable to upload files to Dropbox due to {}. Removing credentials..."
+msgid "[{}] Invalid Credentials for Google Drive. Removing credentials..."
+msgstr "[{}] Kan geen nieuwe bestanden uploaden naar Dropbox wegens {}. Logingegevens voor Dropbox weggehaald..."
+
+#, fuzzy
+#| msgid "[{}] Unable to upload files to Dropbox due to {}. Ignoring new files for the next {} hours..."
+msgid "[{}] Unable to upload files to Google Drive. Ignoring new files for the next {} hours..."
+msgstr "[{}] Kan geen nieuwe bestanden uploaden naar Dropbox, wegens {}, voor de komende {} uur..."
+
+msgid "[{}] Invalid credentials for google drive service. Credentials have been reset"
+msgstr ""
+
+msgid "[{}] Error when polling google authorization servers. Error: {}. Credentials have been reset"
+msgstr ""
+
+#, fuzzy
+#| msgid "[{}] Unable to upload files to Dropbox due to {}. Removing credentials..."
+msgid "[{}] Unable to create remote folder due to {}. Removing Credentials"
+msgstr "[{}] Kan geen nieuwe bestanden uploaden naar Dropbox wegens {}. Logingegevens voor Dropbox weggehaald..."
+
 msgid "Detailed instructions for configuring MinderGas.nl can be found here: <a href=\"https://dsmr-reader.readthedocs.io/nl/latest/admin/mindergas.html\">Documentation</a>"
 msgstr "Gedetailleerde instructies voor het koppelen met MinderGas.nl kun je hier terugvinden: <a href=\"https://dsmr-reader.readthedocs.io/nl/latest/admin/mindergas.html\">Documentatie</a>"
 
@@ -1527,9 +1602,6 @@ msgstr "Optioneel: De gebruikersnaam voor authenticatie (indien nodig)."
 
 msgid "Optional: The password required for authentication (if any)."
 msgstr "Optioneel: het wachtwoord voor authenticatie (indien nodig)."
-
-msgid "Client ID"
-msgstr "Client ID"
 
 msgid "The client ID used to identify DSMR-reader sending the MQTT messages."
 msgstr "Het Client ID dat gebruikt wordt om DSMR-reader te identificeren bij het versturen van de MQTT berichten."

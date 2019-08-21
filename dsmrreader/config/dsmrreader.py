@@ -29,6 +29,7 @@ DSMRREADER_DROPBOX_ERROR_INTERVAL = 12  # Skip new files for 12 hours when insuf
 
 DSMRREADER_GDRIVE_MAX_FILE_MODIFICATION_TIME = 60 * 60 * 24 * 7
 DSMRREADER_GDRIVE_SYNC_INTERVAL = 1
+DSMRREADER_GDRIVE_ERROR_INTERVAL = 12
 
 
 # Whether telegrams are logged, in base64 format. Only required for debugging.
