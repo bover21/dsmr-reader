@@ -76,7 +76,6 @@ class DriveService:
         Note: This function doesn't implement the specified "nextPageToken", it isn't needed for this project as
         100 files limit is well within reason
 
-        :param credentials: credentials
         :param query: query
         :param order_by: how to order the files incoming
         :param fields: what fields to select
@@ -111,12 +110,11 @@ class DriveService:
         return files
 
     def get_file_meta(self, file_path, drive_root_id):
-        credentials = self.credentials
-        folders, file = split_path_into_file_and_folders(file_path)
+        folders, file = self.split_path_into_file_and_folders(file_path)
 
         parent_id = drive_root_id
         for folder in folders:
-            parent_id = check_if_folder_exists(folder, parent_id)
+            parent_id = self.check_if_folder_exists(folder, parent_id)
             if parent_id is None:
                 return None
 
@@ -124,7 +122,7 @@ class DriveService:
         order_by = 'modifiedTime desc'
         fields = 'files(md5Checksum,originalFilename,id)'
 
-        files = execute_file_search(query, order_by, fields)
+        files = self.execute_file_search(query, order_by, fields)
 
         if len(files) > 0:
             return files[0]
@@ -132,7 +130,6 @@ class DriveService:
 
     def check_if_folder_exists(self, name, parent_id=None):
         credentials = self.credentials
-        name = name.replace('_', '-')
 
         if parent_id is not None:
             query = f'name = \'{name}\' and trashed = false and mimeType = \'application/vnd.google-apps.folder\' ' \
@@ -176,7 +173,7 @@ class DriveService:
         return data['id']
 
     def create_remote_path(self, file_path, parent_id=None):
-        folders, file = split_path_into_file_and_folders(file_path)
+        folders, file = self.split_path_into_file_and_folders(file_path)
 
         for folder in folders:
             parent_id = self.create_remote_folder(folder, parent_id)
@@ -236,28 +233,27 @@ class DriveService:
         location = response_headers['Location']
         return location
 
-    @staticmethod
-    def upload_file(abs_file_path, location):
-        file_size = os.path.getsize(abs_file_path)
+    CHUNK_SIZE = 256 * 1024 * 8
+
+    def upload_file(self, abs_file_path, location):
+        if os.path.exists(abs_file_path):
+            file_size = os.path.getsize(abs_file_path)
+        else:
+            raise UploadError('File does not exist')
 
         # chunk size should a multiple of 256 * 1024 (min chunk size is 256 * 1024 + 1)
-        chunk_size = 256 * 1024 * 8
         bytes_confirmed_send = 0
 
         while bytes_confirmed_send != file_size:
             bytes_remaining = file_size - bytes_confirmed_send
-            if bytes_remaining >= chunk_size:
-                part_size = chunk_size
+            if bytes_remaining >= self.CHUNK_SIZE:
+                part_size = self.CHUNK_SIZE
             else:
                 part_size = bytes_remaining
 
-            if os.path.exists(abs_file_path):
-                with open(abs_file_path, 'rb') as f:
-                    f.seek(bytes_confirmed_send)
-                    data = f.read(part_size)
-            else:
-                logger.debug("File does not exist")
-                raise UploadError("File does not exist")
+            with open(abs_file_path, 'rb') as f:
+                f.seek(bytes_confirmed_send)
+                data = f.read(part_size)
 
             headers = {'Content-Length': f'{part_size}',
                        'Content-Range': f'bytes {bytes_confirmed_send}-{bytes_confirmed_send + part_size - 1}/{file_size}'}

@@ -1,4 +1,6 @@
+import tempfile
 import os
+
 from datetime import timedelta
 from unittest import mock
 from unittest.mock import Mock
@@ -9,7 +11,8 @@ from django.utils import timezone
 import dsmr_gdrive.services
 from dsmr_backend.tests.mixins import InterceptStdoutMixin
 from dsmr_backup.models.settings import GoogleDriveSettings
-from dsmr_gdrive.gdrive.drive_api import CredentialsError
+from dsmr_frontend.models.message import Notification
+from dsmr_gdrive.gdrive.drive_api import CredentialsError, UploadError
 
 
 class TestServices(InterceptStdoutMixin, TestCase):
@@ -187,6 +190,21 @@ class TestServices(InterceptStdoutMixin, TestCase):
         self.assertEqual('REFRESH_TOKEN', GoogleDriveSettings.get_solo().refresh_token)
         self.assertEqual('ACCESS_TOKEN', GoogleDriveSettings.get_solo().access_token)
 
+    @mock.patch('requests.post')
+    @mock.patch('django.utils.timezone.now')
+    def test_poll_server_invalid_response(self, now_mock, request_post_mock):
+        now_mock.return_value = timezone.make_aware(timezone.datetime(2016, 1, 1))
+
+        GoogleDriveSettings.objects.all().update(client_id="FAKE", client_secret="FAKE", state=1, next_sync=None)
+        request_post_mock.return_value = Mock(status_code=400,
+                                              json=lambda: {'TEST': 'invalid_grant',
+                                                            'TESTER': 'TEST_SOMETHING'})
+        dsmr_gdrive.services.sync()
+
+        self.assertIsNone(GoogleDriveSettings.get_solo().client_id)
+
+
+
     def test_calculate_content_hash(self):
         result = dsmr_gdrive.services.calculate_content_hash(
             os.path.join(os.path.dirname(__file__), 'dummy.txt')
@@ -271,7 +289,203 @@ class TestServices(InterceptStdoutMixin, TestCase):
     @mock.patch('django.utils.timezone.now')
     def test_update_credentials(self, now_mock):
         now_mock.return_value = timezone.make_aware(timezone.datetime(2016, 1, 1))
+        tm = timezone.now()
         GoogleDriveSettings.objects.all().update(client_id="FAKE", client_secret="FAKE", state=500,
-                                                 access_token="TESTTEST", token_expiry=timezone.now())
+                                                 access_token="TESTTEST", token_expiry=tm)
 
         dsmr_gdrive.services.sync()
+
+        self.assertEqual('TESTTEST', GoogleDriveSettings.get_solo().access_token)
+        self.assertEqual(tm, GoogleDriveSettings.get_solo().token_expiry)
+
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.upload_file')
+    @mock.patch('dsmr_gdrive.services.calculate_content_hash')
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.init_resumable_upload_session')
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.init_resumable_upload_session_existing_file')
+    @mock.patch('dsmr_backup.services.backup.get_backup_directory')
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.get_file_meta')
+    @mock.patch('django.utils.timezone.now')
+    def test_sync_file_existing(self, now_mock, get_file_meta_mock, get_backup_directory_mock,
+                                init_resumable_existing_mock, init_resumable_mock, calculate_content_hash_mock,
+                                upload_file_mock
+                                ):
+        now_mock.return_value = timezone.make_aware(timezone.datetime(2016, 1, 1))
+
+        GoogleDriveSettings.objects.all().update(client_id="FAKE", client_secret="FAKE", state=3, next_sync=None)
+
+        get_file_meta_mock.return_value = {'id': 'test_file_id', 'md5Checksum': 'SOME_HASH'}
+
+        calculate_content_hash_mock.return_value = 'OTHER_HASH'
+        init_resumable_existing_mock.return_value = "NOT NONE"
+        init_resumable_mock.return_value = "NOT NONE"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            get_backup_directory_mock.return_value = temp_dir
+            temp_file = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
+            temp_file.write(b'Meh.')
+            temp_file.flush()
+
+            self.assertFalse(init_resumable_mock.called)
+            self.assertFalse(init_resumable_existing_mock.called)
+            self.assertFalse(upload_file_mock.called)
+
+            dsmr_gdrive.services.sync()
+
+            self.assertFalse(init_resumable_mock.called)
+            self.assertTrue(init_resumable_existing_mock.called)
+            self.assertTrue(upload_file_mock.called)
+
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.upload_file')
+    @mock.patch('dsmr_gdrive.services.calculate_content_hash')
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.init_resumable_upload_session')
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.init_resumable_upload_session_existing_file')
+    @mock.patch('dsmr_backup.services.backup.get_backup_directory')
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.get_file_meta')
+    @mock.patch('django.utils.timezone.now')
+    def test_sync_file_new(self, now_mock, get_file_meta_mock, get_backup_directory_mock,
+                                init_resumable_existing_mock, init_resumable_mock, calculate_content_hash_mock,
+                                upload_file_mock
+                                ):
+        now_mock.return_value = timezone.make_aware(timezone.datetime(2016, 1, 1))
+
+        GoogleDriveSettings.objects.all().update(client_id="FAKE", client_secret="FAKE", state=3, next_sync=None)
+
+        get_file_meta_mock.return_value = None
+
+        calculate_content_hash_mock.return_value = 'OTHER_HASH'
+        init_resumable_existing_mock.return_value = "NOT NONE"
+        init_resumable_mock.return_value = "NOT NONE"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            get_backup_directory_mock.return_value = temp_dir
+            temp_file = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
+            temp_file.write(b'Meh.')
+            temp_file.flush()
+
+            self.assertFalse(init_resumable_mock.called)
+            self.assertFalse(init_resumable_existing_mock.called)
+            self.assertFalse(upload_file_mock.called)
+
+            dsmr_gdrive.services.sync()
+
+            self.assertTrue(init_resumable_mock.called)
+            self.assertFalse(init_resumable_existing_mock.called)
+            self.assertTrue(upload_file_mock.called)
+
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.upload_file')
+    @mock.patch('dsmr_gdrive.services.calculate_content_hash')
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.init_resumable_upload_session')
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.init_resumable_upload_session_existing_file')
+    @mock.patch('dsmr_backup.services.backup.get_backup_directory')
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.get_file_meta')
+    @mock.patch('django.utils.timezone.now')
+    def test_sync_file_failed_location(self, now_mock, get_file_meta_mock, get_backup_directory_mock,
+                                       init_resumable_existing_mock, init_resumable_mock, calculate_content_hash_mock,
+                                       upload_file_mock):
+
+        Notification.objects.all().delete()
+        self.assertEqual(Notification.objects.count(), 0)
+
+        now_mock.return_value = timezone.make_aware(timezone.datetime(2016, 1, 1))
+
+        GoogleDriveSettings.objects.all().update(client_id="FAKE", client_secret="FAKE", state=3, next_sync=None)
+
+        get_file_meta_mock.return_value = None
+
+        calculate_content_hash_mock.return_value = None
+        init_resumable_existing_mock.return_value = None
+        init_resumable_mock.return_value = None
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            get_backup_directory_mock.return_value = temp_dir
+            temp_file = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
+            temp_file.write(b'Meh.')
+            temp_file.flush()
+
+            self.assertFalse(init_resumable_mock.called)
+            self.assertFalse(init_resumable_existing_mock.called)
+            self.assertFalse(upload_file_mock.called)
+
+            dsmr_gdrive.services.sync()
+
+            self.assertTrue(init_resumable_mock.called)
+            self.assertFalse(init_resumable_existing_mock.called)
+            self.assertFalse(upload_file_mock.called)
+            self.assertEqual(Notification.objects.count(), 1)
+
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.upload_file')
+    @mock.patch('dsmr_gdrive.services.calculate_content_hash')
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.init_resumable_upload_session')
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.init_resumable_upload_session_existing_file')
+    @mock.patch('dsmr_backup.services.backup.get_backup_directory')
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.get_file_meta')
+    @mock.patch('django.utils.timezone.now')
+    def test_sync_file_failed_upload_error(self, now_mock, get_file_meta_mock, get_backup_directory_mock,
+                                       init_resumable_existing_mock, init_resumable_mock, calculate_content_hash_mock,
+                                       upload_file_mock):
+        now_mock.return_value = timezone.make_aware(timezone.datetime(2016, 1, 1))
+        Notification.objects.all().delete()
+        self.assertEqual(Notification.objects.count(), 0)
+        GoogleDriveSettings.objects.all().update(client_id="FAKE", client_secret="FAKE", state=3, next_sync=None)
+
+        get_file_meta_mock.return_value = None
+
+        calculate_content_hash_mock.return_value = None
+        init_resumable_existing_mock.return_value = 'SOME_LOCATION'
+        init_resumable_mock.return_value = 'SOME_LOCATION'
+        upload_file_mock.side_effect = UploadError("Some Error")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            get_backup_directory_mock.return_value = temp_dir
+            temp_file = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
+            temp_file.write(b'Meh.')
+            temp_file.flush()
+
+            self.assertFalse(init_resumable_mock.called)
+            self.assertFalse(init_resumable_existing_mock.called)
+            self.assertFalse(upload_file_mock.called)
+
+            dsmr_gdrive.services.sync()
+
+            self.assertTrue(init_resumable_mock.called)
+            self.assertFalse(init_resumable_existing_mock.called)
+            self.assertTrue(upload_file_mock.called)
+            self.assertEqual(Notification.objects.count(), 1)
+
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.upload_file')
+    @mock.patch('dsmr_gdrive.services.calculate_content_hash')
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.init_resumable_upload_session')
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.init_resumable_upload_session_existing_file')
+    @mock.patch('dsmr_backup.services.backup.get_backup_directory')
+    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.get_file_meta')
+    @mock.patch('django.utils.timezone.now')
+    def test_sync_content_not_modified(self, now_mock, get_file_meta_mock, get_backup_directory_mock,
+                                           init_resumable_existing_mock, init_resumable_mock,
+                                           calculate_content_hash_mock,
+                                           upload_file_mock):
+        now_mock.return_value = timezone.make_aware(timezone.datetime(2016, 1, 1))
+        GoogleDriveSettings.objects.all().update(client_id="FAKE", client_secret="FAKE", state=3, next_sync=None)
+
+        get_file_meta_mock.return_value = {'id': 'test_file_id', 'md5Checksum': 'SOME_HASH'}
+
+        calculate_content_hash_mock.return_value = "SOME_HASH"
+        init_resumable_existing_mock.return_value = 'SOME_LOCATION'
+        init_resumable_mock.return_value = 'SOME_LOCATION'
+        upload_file_mock.side_effect = UploadError("Some Error")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            get_backup_directory_mock.return_value = temp_dir
+            temp_file = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
+            temp_file.write(b'Meh.')
+            temp_file.flush()
+
+            self.assertFalse(init_resumable_mock.called)
+            self.assertFalse(init_resumable_existing_mock.called)
+            self.assertFalse(upload_file_mock.called)
+
+            dsmr_gdrive.services.sync()
+
+            self.assertFalse(init_resumable_mock.called)
+            self.assertFalse(init_resumable_existing_mock.called)
+            self.assertFalse(upload_file_mock.called)
+

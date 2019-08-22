@@ -227,9 +227,8 @@ def poll_server(gdrive_settings):
                 return
         logger.error(data)
         Notification.objects.create(message=gettext(
-            "[{}] Error when polling google authorization servers. Error: {}. Credentials have been reset".format(
+            "[{}] Error when polling google authorization servers. Credentials have been reset".format(
                 timezone.now(),
-                data['error_description']
             )
         ))
         GoogleDriveSettings.objects.update(

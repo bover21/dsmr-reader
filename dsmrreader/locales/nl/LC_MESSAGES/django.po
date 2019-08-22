@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DSMR Reader v1.x\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-08-21 02:21+0200\n"
+"POT-Creation-Date: 2019-08-22 17:34+0200\n"
 "Last-Translator: Dennis Siemensma <github@dennissiemensma.nl>\n"
 "Language-Team: Dennis Siemensma <github@dennissiemensma.nl>\n"
 "Language: nl\n"
@@ -1274,7 +1274,7 @@ msgstr "[{}] Kan geen nieuwe bestanden uploaden naar Dropbox, wegens {}, voor de
 msgid "[{}] Invalid credentials for google drive service. Credentials have been reset"
 msgstr ""
 
-msgid "[{}] Error when polling google authorization servers. Error: {}. Credentials have been reset"
+msgid "[{}] Error when polling google authorization servers. Credentials have been reset"
 msgstr ""
 
 #, fuzzy
