@@ -266,6 +266,4 @@ def setup_directory(service, gdrive_settings):
             state=settings.DSMRREADER_GDRIVE_MAKE_ACCESS_REQUEST
         )
         return
-
-    pass
 # endregion

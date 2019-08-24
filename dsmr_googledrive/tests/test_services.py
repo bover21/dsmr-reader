@@ -224,7 +224,6 @@ class TestServices(InterceptStdoutMixin, TestCase):
             os.path.join(os.path.dirname(__file__), 'dummy.txt')
         )
         self.assertEqual(result, '2f5d040efe7a42620a617ee7a7feb6b9')
-        pass
 
     @override_settings(DSMRREADER_GDRIVE_MAX_FILE_MODIFICATION_TIME=60)
     @mock.patch('time.time')

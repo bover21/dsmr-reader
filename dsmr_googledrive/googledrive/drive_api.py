@@ -271,7 +271,6 @@ class DriveService:
                     logger.debug(f'{(bytes_confirmed_send/file_size)*100}% {abs_file_path}')
                 else:
                     raise UploadError("No Range header found in response")
-                pass
             elif status_code == 201 or status_code == 200:
                 bytes_confirmed_send = file_size
                 logger.debug(f'{(bytes_confirmed_send / file_size) * 100}% {abs_file_path}')
