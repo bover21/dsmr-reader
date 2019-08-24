@@ -12,7 +12,7 @@ from django.utils import formats
 from dsmr_stats.models.statistics import DayStatistics
 from dsmr_backup.models.settings import BackupSettings
 import dsmr_dropbox.services
-import dsmr_gdrive.services
+import dsmr_googledrive.services
 
 
 logger = logging.getLogger('commands')
@@ -180,4 +180,4 @@ def compress(file_path, compresslevel=1):
 def sync():
     """ Syncs backup folder with remote storage. """
     dsmr_dropbox.services.sync()
-    dsmr_gdrive.services.sync()
+    dsmr_googledrive.services.sync()

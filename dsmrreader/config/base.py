@@ -57,7 +57,7 @@ INSTALLED_APPS = (
     'dsmr_datalogger.apps.DataloggerAppConfig',
     'dsmr_dropbox.apps.DropboxAppConfig',
     'dsmr_frontend.apps.FrontendAppConfig',
-    'dsmr_gdrive.apps.GoogleDriveAppConfig',
+    'dsmr_googledrive.apps.GoogleDriveAppConfig',
     'dsmr_mindergas.apps.MindergasAppConfig',
     'dsmr_mqtt.apps.MqttAppConfig',
     'dsmr_notification.apps.NotificationAppConfig',

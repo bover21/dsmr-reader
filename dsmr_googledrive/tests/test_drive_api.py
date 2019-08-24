@@ -8,7 +8,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from dsmr_backend.tests.mixins import InterceptStdoutMixin
-from dsmr_gdrive.gdrive.drive_api import DriveService, FileError, Credentials, InvalidCredentialsError, \
+from dsmr_googledrive.googledrive.drive_api import DriveService, FileError, Credentials, InvalidCredentialsError, \
     InvalidClientError, InvalidTokenError, RefreshError, UploadError
 
 
@@ -122,9 +122,9 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         with self.assertRaises(FileError):
             service.execute_file_search('name = \'TEST\'')
 
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.execute_file_search')
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.split_path_into_file_and_folders')
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.check_if_folder_exists')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.execute_file_search')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.split_path_into_file_and_folders')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.check_if_folder_exists')
     def test_get_file_meta(self, check_if_folder_exists_mock, split_path_mock, execute_file_search_mock):
         credentials_mock = Mock(valid=True)
         split_path_mock.return_value = (['one', 'two', 'three'], 'file.txt')
@@ -135,9 +135,9 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
 
         self.assertEqual(check_if_folder_exists_mock.call_count, 3)
 
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.execute_file_search')
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.split_path_into_file_and_folders')
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.check_if_folder_exists')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.execute_file_search')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.split_path_into_file_and_folders')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.check_if_folder_exists')
     def test_get_file_meta_parent_none(self, check_if_folder_exists_mock, split_path_mock, execute_file_search_mock):
         credentials_mock = Mock(valid=True)
         split_path_mock.return_value = (['one', 'two', 'three'], 'file.txt')
@@ -148,8 +148,8 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         self.assertEqual(check_if_folder_exists_mock.call_count, 1)
         self.assertIsNone(value)
 
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.execute_file_search')
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.split_path_into_file_and_folders')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.execute_file_search')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.split_path_into_file_and_folders')
     def test_get_file_meta_multiple_files(self, split_path_mock, execute_file_search_mock):
         credentials_mock = Mock(valid=True)
         split_path_mock.return_value = (['one', 'two', 'three'], 'file.txt')
@@ -158,8 +158,8 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         value = service.get_file_meta('', 12345)
         self.assertEqual('1', value['id'])
 
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.execute_file_search')
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.split_path_into_file_and_folders')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.execute_file_search')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.split_path_into_file_and_folders')
     def test_get_file_meta_no_files(self, split_path_mock, execute_file_search_mock):
         credentials_mock = Mock(valid=True)
         split_path_mock.return_value = (['one', 'two', 'three'], 'file.txt')
@@ -168,7 +168,7 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         value = service.get_file_meta('', 12345)
         self.assertIsNone(value)
 
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.execute_file_search')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.execute_file_search')
     def test_check_folder_exists(self, execute_file_mock):
         credentials_mock = Mock(valid=True)
         execute_file_mock.return_value = []
@@ -177,7 +177,7 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         self.assertTrue('parents' not in str(execute_file_mock.call_args))
         self.assertTrue('TEST_NAME' in str(execute_file_mock.call_args))
 
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.execute_file_search')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.execute_file_search')
     def test_check_folder_exists_with_parent(self, execute_file_mock):
         credentials_mock = Mock(valid=True)
         execute_file_mock.return_value = []
@@ -187,7 +187,7 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         self.assertTrue('123456' in str(execute_file_mock.call_args))
         self.assertTrue('TEST_NAME' in str(execute_file_mock.call_args))
 
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.execute_file_search')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.execute_file_search')
     def test_check_folder_exist_return(self, execute_file_mock):
         credentials_mock = Mock(valid=True)
         service = DriveService(credentials_mock)
@@ -197,7 +197,7 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         self.assertEqual(value, '1')
 
     @mock.patch('requests.post')
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.check_if_folder_exists')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.check_if_folder_exists')
     def test_create_remote_folder(self, check_folder_mock, request_mock):
         credentials_mock = Mock(valid=True, access_token='TEST-TOKEN')
         service = DriveService(credentials_mock)
@@ -213,7 +213,7 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         self.assertEqual('SOME_ID', value)
 
     @mock.patch('requests.post')
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.check_if_folder_exists')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.check_if_folder_exists')
     def test_create_remote_folder_already_exists(self, check_folder_mock, request_mock):
         credentials_mock = Mock(valid=True, access_token='TEST-TOKEN')
         service = DriveService(credentials_mock)
@@ -228,7 +228,7 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         self.assertEqual('EXISTING_ID', value)
 
     @mock.patch('requests.post')
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.check_if_folder_exists')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.check_if_folder_exists')
     def test_create_remote_folder_refresh_creds(self, check_folder_mock, request_mock):
         credentials_mock = Mock(valid=False, access_token='TEST-TOKEN')
         request_mock.return_value = Mock(status_code=200,
@@ -240,7 +240,7 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         self.assertTrue(credentials_mock.refresh.called)
 
     @mock.patch('requests.post')
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.check_if_folder_exists')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.check_if_folder_exists')
     def test_create_remote_folder_error_returned(self, check_folder_mock, request_mock):
         credentials_mock = Mock(valid=False, access_token='TEST-TOKEN')
         request_mock.return_value = Mock(status_code=200,
@@ -251,7 +251,7 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         self.assertIsNone(value)
 
     @mock.patch('requests.post')
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.check_if_folder_exists')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.check_if_folder_exists')
     def test_create_remote_folder_in_parent(self, check_folder_mock, request_mock):
         credentials_mock = Mock(valid=False, access_token='TEST-TOKEN')
         request_mock.return_value = Mock(status_code=200,
@@ -262,7 +262,7 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         self.assertTrue('PARENT_ID' in str(request_mock.call_args))
         self.assertIsNone(value)
 
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.create_remote_folder')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.create_remote_folder')
     def test_create_remote_path(self, create_remote_folder_mock):
         credentials_mock = Mock(valid=False)
         service = DriveService(credentials_mock)
@@ -272,7 +272,7 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         self.assertEqual(3, create_remote_folder_mock.call_count)
         self.assertEqual('VALUE', value)
 
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.create_remote_folder')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.create_remote_folder')
     def test_create_remote_path_none(self, create_remote_folder_mock):
         credentials_mock = Mock(valid=False)
         service = DriveService(credentials_mock)
@@ -326,7 +326,7 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         value = service.init_resumable_upload_session_existing_file('FOLDERNAME', 'ID')
         self.assertEqual('SOME_ID', value)
 
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.create_remote_path')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.create_remote_path')
     @mock.patch('os.path.basename')
     @mock.patch('os.path.getsize')
     @mock.patch('requests.patch')
@@ -343,7 +343,7 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         value = service.init_resumable_upload_session('FILE', 'REMOTE', 'ID')
         self.assertTrue(credentials_mock.refresh.called)
 
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.create_remote_path')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.create_remote_path')
     @mock.patch('os.path.basename')
     @mock.patch('os.path.getsize')
     @mock.patch('requests.patch')
@@ -359,7 +359,7 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
         value = service.init_resumable_upload_session('path', 'path', 'id')
         self.assertIsNone(value)
 
-    @mock.patch('dsmr_gdrive.gdrive.drive_api.DriveService.create_remote_path')
+    @mock.patch('dsmr_googledrive.googledrive.drive_api.DriveService.create_remote_path')
     @mock.patch('os.path.basename')
     @mock.patch('os.path.getsize')
     @mock.patch('requests.post')
@@ -458,9 +458,3 @@ class TestDriveAPI(InterceptStdoutMixin, TestCase):
             request_mock.return_value = Mock(status_code=200)
             value = service.upload_file(temp_file.name, 'LOCATION')
             self.assertTrue(value)
-
-
-
-
-
-

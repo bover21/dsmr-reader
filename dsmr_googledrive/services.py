@@ -5,16 +5,15 @@ import time
 from datetime import timedelta
 
 import requests
+from django.conf import settings
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as gettext
 
 import dsmr_backup.services.backup
 from dsmr_backup.models.settings import GoogleDriveSettings
 from dsmr_frontend.models.message import Notification
-from dsmr_gdrive.gdrive.drive_api import Credentials, DriveService, CredentialsError, UploadError, FileError
-
+from dsmr_googledrive.googledrive.drive_api import Credentials, DriveService, CredentialsError, UploadError, FileError
 from dsmrreader import settings
-from django.conf import settings
 
 logger = logging.getLogger('commands')
 
@@ -24,9 +23,9 @@ def sync():
 
     if not gdrive_settings.client_id or not gdrive_settings.client_secret:
         # If drive settings does have a state but no client_id then reset state so other credentials can entered
-        if gdrive_settings.state != 0:
+        if gdrive_settings.state != settings.DSMRREADER_GDRIVE_MAKE_ACCESS_REQUEST:
             GoogleDriveSettings.objects.update(
-                state=0
+                state=settings.DSMRREADER_GDRIVE_MAKE_ACCESS_REQUEST
             )
         return
 
@@ -38,16 +37,16 @@ def sync():
 
     service = DriveService(credentials)
 
-    if gdrive_settings.state == 0:
+    if gdrive_settings.state == settings.DSMRREADER_GDRIVE_MAKE_ACCESS_REQUEST:
         make_request(gdrive_settings)
 
-    elif gdrive_settings.state == 1:
+    elif gdrive_settings.state == settings.DSMRREADER_GDRIVE_POLL_SERVER:
         poll_server(gdrive_settings)
 
-    elif gdrive_settings.state == 2:
+    elif gdrive_settings.state == settings.DSMRREADER_GDRIVE_SETUP_FOLDERS:
         setup_directory(service, gdrive_settings)
 
-    elif gdrive_settings.state == 3:
+    elif gdrive_settings.state == settings.DSMRREADER_GDRIVE_SYNC_FILES:
         gdrive_sync(service, gdrive_settings)
 
     if credentials.access_token is not None and credentials.token_expiry is not None:
@@ -109,7 +108,7 @@ def gdrive_sync(service, gdrive_settings):
                     latest_sync=timezone.now(),
                     next_sync=None,
                     client_id=None,
-                    state=0
+                    state=settings.DSMRREADER_GDRIVE_MAKE_ACCESS_REQUEST
                 )
 
 
@@ -181,7 +180,7 @@ def make_request(gdrive_settings):
             interval=data['interval'],
             authorization_url=data['verification_url'],
             next_sync=timezone.now() + timedelta(seconds=data['interval']),
-            state=1
+            state=settings.DSMRREADER_GDRIVE_POLL_SERVER
         )
     else:
         logger.error("Error when making request")
@@ -192,7 +191,7 @@ def make_request(gdrive_settings):
         ))
         GoogleDriveSettings.objects.update(
             client_id=None,
-            state=0
+            state=settings.DSMRREADER_GDRIVE_MAKE_ACCESS_REQUEST
         )
     return
 
@@ -215,7 +214,7 @@ def poll_server(gdrive_settings):
             token_expiry=timezone.now() + timedelta(seconds=data['expires_in']),
             authorization_url="",
             user_code=None,
-            state=2
+            state=settings.DSMRREADER_GDRIVE_SETUP_FOLDERS
         )
         return
     else:
@@ -235,7 +234,7 @@ def poll_server(gdrive_settings):
             client_id=None,
             authorization_url=None,
             user_code=None,
-            state=0
+            state=settings.DSMRREADER_GDRIVE_MAKE_ACCESS_REQUEST
         )
         return
 
@@ -250,7 +249,7 @@ def setup_directory(service, gdrive_settings):
 
         GoogleDriveSettings.objects.update(
             folder_id=dir_id,
-            state=3
+            state=settings.DSMRREADER_GDRIVE_SYNC_FILES
         )
 
     except (CredentialsError, FileError) as err:
@@ -264,7 +263,7 @@ def setup_directory(service, gdrive_settings):
             latest_sync=timezone.now(),
             next_sync=None,
             client_id=None,
-            state=0
+            state=settings.DSMRREADER_GDRIVE_MAKE_ACCESS_REQUEST
         )
         return
 
